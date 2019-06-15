@@ -19,6 +19,13 @@ Options:
 from docopt import docopt
 import random
 
+
+def random_file_except(root, blacklist):
+  if blacklist == None:
+    blacklist = []
+  return random_file(root, lambda x: x not in blacklist)
+
+
 def random_file(root, condition=None):
   if condition == None:
     condition = lambda x: True
@@ -49,9 +56,15 @@ def random_file(root, condition=None):
 
 def main():
   args = docopt(__doc__)
-  if args["<DIR>"] == None:
-    args["<DIR>"] = DEFAULT_ROOT
-  print(random_file(args["<DIR>"], (lambda x: os.path.basename(x) not in ['o', 'i', 'j', 'k'])))
+  root = args["<DIR>"]
+  if root == None:
+    root = DEFAULT_ROOT
+  blacklist = []
+  for i in range(1, 30):
+    _next = random_file_except(root, blacklist)
+    if _next != None:
+      blacklist.append(_next)
+    print(_next)
 
 if __name__ == "__main__":
   main()
