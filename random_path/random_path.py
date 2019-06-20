@@ -14,8 +14,7 @@ OUTPUT_FORMATS = ["just-filename", "plain", "json", "char30-delimited"]
 OUTPUT_FORMATS_LIST = ", ".join(["'" + x + "'" for x in OUTPUT_FORMATS])
 
 __doc__ = """
-Usage: {0} [options] <DIR>
-       {0} [options]
+Usage: {0} [options] [-e <ext>]... [<DIR>]
 
 Options:
   -h, --help                        Show this help
@@ -97,8 +96,9 @@ def main():
     with open(args["--path-blacklist"]) as g:
       path_blacklist = g.read().split()
       conditions.append(lambda x: x not in path_blacklist)
-  if args["--extension"] != None:
-    conditions.append(lambda x: x.lower().endswith(args["--extension"].lower()))
+  if args["--extension"] != []:
+    for extension in args["--extension"]:
+      conditions.append(lambda x: x.lower().endswith(extension.lower()))
   file_condition = lambda x: all([f(x) for f in conditions])
 
   _next = random_file(root, file_condition=file_condition)
