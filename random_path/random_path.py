@@ -6,8 +6,12 @@ import hashlib
 from docopt import docopt
 import random
 import json
+import io
+import csv
 
 DEFAULT_ROOT = os.path.abspath(".")
+OUTPUT_FORMATS = ["just-filename", "plain", "json", "char30-delimited"]
+OUTPUT_FORMATS_LIST = ", ".join(["'" + x + "'" for x in OUTPUT_FORMATS])
 
 __doc__ = """
 Usage: {0} [options] <DIR>
@@ -19,11 +23,12 @@ Options:
                                     [DEFAULT: {1}]
   -s, --sha384-blacklist=<filename> File full of sha384s to be skipped
   -p, --path-blacklist=<filename>   File full of paths to be skipped
-  -j, --json-output                 Instead of a simple pathname, output a json
-                                    filled with information about the random
-                                    path chosen
+  -o, --output-format=<style>       {2}
+                                    [DEFAULT: just-filename]
   -v, --version                     Show version
-""".format(sys.argv[0], DEFAULT_ROOT)
+  -e, --extension=<.txt>            Only yield files with this extension
+                                    (case insensitive)
+""".format(sys.argv[0], DEFAULT_ROOT, OUTPUT_FORMATS_LIST)
 
 
 def sha384(filename):
@@ -75,34 +80,42 @@ def random_file(root, *, file_condition=None, dir_condition=None):
 def main():
   args = docopt(__doc__)
   root = args["<DIR>"]
-  _format = "plain"
-  if args["--json-output"]:
-    _format = "json"
+  _format = args["--output-format"]
+  if _format not in OUTPUT_FORMATS:
+    print("Only allowed formats are:\n  {}\nreceived '{}'".format(
+        OUTPUT_FORMATS_LIST, _format))
+    exit(1)
   if root == None:
     root = DEFAULT_ROOT
-  if args["--sha384-blacklist"] != None and args["--path-blacklist"] != None:
-    with open(args["--sha384-blacklist"]) as f:
-      with open(args["--path-blacklist"]) as g:
-        sha384_blacklist = f.read().split()
-        path_blacklist = g.read().split()
-        file_condition = \
-            lambda x: x not in path_blacklist and sha384(x) not in sha384_blacklist
-  elif args["--sha384-blacklist"] != None:
+
+  conditions = []
+  if args["--sha384-blacklist"] != None:
     with open(args["--sha384-blacklist"]) as f:
       sha384_blacklist = f.read().split()
-      file_condition = lambda x: sha384(x) not in sha384_blacklist
-  elif args["--path-blacklist"] != None:
-    with open(args["--path-blacklist"]) as f:
-      path_blacklist = f.read().split()
-      file_condition = lambda x: x not in path_blacklist
-  else:
-    file_condition = lambda x: True
+      conditions.append(lambda x: sha384(x) not in sha384_blacklist)
+  if args["--path-blacklist"] != None:
+    with open(args["--path-blacklist"]) as g:
+      path_blacklist = g.read().split()
+      conditions.append(lambda x: x not in path_blacklist)
+  if args["--extension"] != None:
+    conditions.append(lambda x: x.lower().endswith(args["--extension"].lower()))
+  file_condition = lambda x: all([f(x) for f in conditions])
 
   _next = random_file(root, file_condition=file_condition)
-  if (_format == "json"):
-    print(json.dumps({"path": _next, "sha384": sha384(_next)}))
-  else:
+
+  if _format == "just-filename":
     print(_next)
+  else:
+    info = {"path": _next, "sha384": sha384(_next)}
+    if _format == "json":
+      print(json.dumps(info))
+    elif _format == "char30-delimited":
+      print(chr(30).join(["path", _next, "sha384", sha384(_next)]))
+    elif _format == "plain":
+      print("path: {}".format(_next))
+      print("sha384: {}".format(sha384(_next)))
+    else:
+      print(_next)
 
 
 if __name__ == "__main__":
