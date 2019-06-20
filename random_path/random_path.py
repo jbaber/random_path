@@ -14,19 +14,19 @@ Usage: {0} [options] <DIR>
        {0} [options]
 
 Options:
-  -h, --help                       Show this help
-  <DIR>                            Directory to start descending from
-                                   [DEFAULT: {1}]
-  -s, --sha-blacklist=<filename>   File full of shas to be skipped
-  -p, --path-blacklist=<filename>  File full of paths to be skipped
-  -j, --json-output                Instead of a simple pathname, output a json
-                                   filled with information about the random
-                                   path chosen
-  -v, --version                    Show version
+  -h, --help                        Show this help
+  <DIR>                             Directory to start descending from
+                                    [DEFAULT: {1}]
+  -s, --sha384-blacklist=<filename> File full of sha384s to be skipped
+  -p, --path-blacklist=<filename>   File full of paths to be skipped
+  -j, --json-output                 Instead of a simple pathname, output a json
+                                    filled with information about the random
+                                    path chosen
+  -v, --version                     Show version
 """.format(sys.argv[0], DEFAULT_ROOT)
 
 
-def sha(filename):
+def sha384(filename):
   BLOCKSIZE = 65536
   hasher = hashlib.sha384()
   with open(filename, "rb") as f:
@@ -80,17 +80,17 @@ def main():
     _format = "json"
   if root == None:
     root = DEFAULT_ROOT
-  if args["--sha-blacklist"] != None and args["--path-blacklist"] != None:
-    with open(args["--sha-blacklist"]) as f:
+  if args["--sha384-blacklist"] != None and args["--path-blacklist"] != None:
+    with open(args["--sha384-blacklist"]) as f:
       with open(args["--path-blacklist"]) as g:
-        sha_blacklist = f.read().split()
+        sha384_blacklist = f.read().split()
         path_blacklist = g.read().split()
         file_condition = \
-            lambda x: x not in path_blacklist and sha(x) not in sha_blacklist
-  elif args["--sha-blacklist"] != None:
-    with open(args["--sha-blacklist"]) as f:
-      sha_blacklist = f.read().split()
-      file_condition = lambda x: sha(x) not in sha_blacklist
+            lambda x: x not in path_blacklist and sha384(x) not in sha384_blacklist
+  elif args["--sha384-blacklist"] != None:
+    with open(args["--sha384-blacklist"]) as f:
+      sha384_blacklist = f.read().split()
+      file_condition = lambda x: sha384(x) not in sha384_blacklist
   elif args["--path-blacklist"] != None:
     with open(args["--path-blacklist"]) as f:
       path_blacklist = f.read().split()
@@ -100,7 +100,7 @@ def main():
 
   _next = random_file(root, file_condition=file_condition)
   if (_format == "json"):
-    print(json.dumps({"path": _next, "sha": sha(_next)}))
+    print(json.dumps({"path": _next, "sha384": sha384(_next)}))
   else:
     print(_next)
 
