@@ -2,6 +2,10 @@
 
 import sys
 import os
+import hashlib
+from docopt import docopt
+import random
+import json
 
 DEFAULT_ROOT = os.path.abspath(".")
 
@@ -10,29 +14,42 @@ Usage: {0} [options] <DIR>
        {0} [options]
 
 Options:
-  -v, --version          Show version
-  -h, --help             Show this help
-  <DIR>                  Directory to start descending from
-                         [DEFAULT: {1}]
+  -h, --help                       Show this help
+  <DIR>                            Directory to start descending from
+                                   [DEFAULT: {1}]
+  -s, --sha-blacklist=<filename>   File full of shas to be skipped
+  -p, --path-blacklist=<filename>  File full of paths to be skipped
+  -j, --json-output                Instead of a simple pathname, output a json
+                                   filled with information about the random
+                                   path chosen
+  -v, --version                    Show version
 """.format(sys.argv[0], DEFAULT_ROOT)
 
-from docopt import docopt
-import random
+
+def sha(filename):
+  BLOCKSIZE = 65536
+  hasher = hashlib.sha384()
+  with open(filename, "rb") as f:
+    buf = f.read(BLOCKSIZE)
+    while len(buf) > 0:
+      hasher.update(buf)
+      buf = f.read(BLOCKSIZE)
+  return hasher.hexdigest()
 
 
-def random_file_except(root, blacklist):
-  if blacklist == None:
-    blacklist = []
-  return random_file(root, lambda x: x not in blacklist)
-
-
-def random_file(root, condition=None):
-  if condition == None:
-    condition = lambda x: True
-  if not condition(root):
+def random_file(root, *, file_condition=None, dir_condition=None):
+  """
+  To be returned, file_condition must be True and dir_condition must be True
+  for all directories containing a file
+  """
+  if file_condition == None:
+    file_condition = lambda x: True
+  if dir_condition == None:
+    dir_condition = lambda x: True
+  if not dir_condition(root):
     return None
   if os.path.isfile(root):
-    if condition(root):
+    if file_condition(root):
       return root
     else:
       return None
@@ -44,10 +61,11 @@ def random_file(root, condition=None):
   all_items = random.sample(all_items, len(all_items))
   for dir_or_file in all_items:
     dir_or_file = os.path.join(root, dir_or_file)
-    if os.path.isfile(dir_or_file) and condition(dir_or_file):
+    if os.path.isfile(dir_or_file) and file_condition(dir_or_file):
       return dir_or_file
-    if os.path.isdir(dir_or_file):
-      maybe = random_file(dir_or_file, condition)
+    if os.path.isdir(dir_or_file) and dir_condition(dir_or_file):
+      maybe = random_file(dir_or_file, file_condition=file_condition,
+          dir_condition=dir_condition)
       if maybe is not None:
         return maybe
   return None
@@ -57,14 +75,35 @@ def random_file(root, condition=None):
 def main():
   args = docopt(__doc__)
   root = args["<DIR>"]
+  _format = "plain"
+  if args["--json-output"]:
+    _format = "json"
   if root == None:
     root = DEFAULT_ROOT
-  blacklist = []
-  for i in range(1, 30):
-    _next = random_file_except(root, blacklist)
-    if _next != None:
-      blacklist.append(_next)
+  if args["--sha-blacklist"] != None and args["--path-blacklist"] != None:
+    with open(args["--sha-blacklist"]) as f:
+      with open(args["--path-blacklist"]) as g:
+        sha_blacklist = f.read().split()
+        path_blacklist = g.read().split()
+        file_condition = \
+            lambda x: x not in path_blacklist and sha(x) not in sha_blacklist
+  elif args["--sha-blacklist"] != None:
+    with open(args["--sha-blacklist"]) as f:
+      sha_blacklist = f.read().split()
+      file_condition = lambda x: sha(x) not in sha_blacklist
+  elif args["--path-blacklist"] != None:
+    with open(args["--path-blacklist"]) as f:
+      path_blacklist = f.read().split()
+      file_condition = lambda x: x not in path_blacklist
+  else:
+    file_condition = lambda x: True
+
+  _next = random_file(root, file_condition=file_condition)
+  if (_format == "json"):
+    print(json.dumps({"path": _next, "sha": sha(_next)}))
+  else:
     print(_next)
+
 
 if __name__ == "__main__":
   main()
