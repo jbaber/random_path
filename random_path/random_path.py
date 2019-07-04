@@ -77,7 +77,7 @@ def random_file(root, *, file_condition=None, dir_condition=None):
 
 
 def main():
-  args = docopt(__doc__)
+  args = docopt(__doc__, version="1.0.1")
   root = args["<DIR>"]
   _format = args["--output-format"]
   if _format not in OUTPUT_FORMATS:
