@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
   name = "random_path",
-  version = "1.0.1",
+  version = "1.1.0",
   author = "John Baber-Lucero",
   author_email = "pypi@frundle.com",
   description = ("Choose random file paths with conditions"),

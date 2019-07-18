@@ -41,6 +41,32 @@ def sha384(filename):
   return hasher.hexdigest()
 
 
+def random_non_repeating_filenames(root, *, blacklist=None,
+    conditions=None):
+  if conditions == None:
+    conditions = []
+  if blacklist != None:
+    conditions.append(lambda x: x not in blacklist)
+
+  # TODO Consider how large this gets and do write
+  # to disk if it gets too big or do some other intelligent
+  # optimizations
+  already_yielded = []
+  new_filename = random_file(root,
+      file_condition = lambda x:
+        x not in already_yielded and
+        all([condition(x) for condition in conditions])
+  )
+  while new_filename != None:
+    already_yielded.append(new_filename)
+    yield new_filename
+    new_filename = random_file(root,
+        file_condition = lambda x:
+          x not in already_yielded and
+          all([condition(x) for condition in conditions])
+    )
+
+
 def random_file(root, *, file_condition=None, dir_condition=None):
   """
   To be returned, file_condition must be True and dir_condition must be True
@@ -77,7 +103,7 @@ def random_file(root, *, file_condition=None, dir_condition=None):
 
 
 def main():
-  args = docopt(__doc__, version="1.0.1")
+  args = docopt(__doc__, version="1.1.0")
   root = args["<DIR>"]
   _format = args["--output-format"]
   if _format not in OUTPUT_FORMATS:
