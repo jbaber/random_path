@@ -23,31 +23,30 @@ def test_random_file(tmp_path):
   #     │   └── o
   #     └── p
   d = tmp_path
-  for letter in "a/b/c/d/e/f/g/h/i/j".split("/"):
-    d = d / letter
-    d.mkdir()
-  for letter in "st":
-    d = tmp_path / "a/b/c/d/e/f/g/h" / letter
-    d.mkdir()
-  d = tmp_path / "a/b/c/d/e/f" / "q"
-  d.mkdir()
-  d = tmp_path / "a/b/c"
-  for letter in "klm":
-    d = d / letter
-    d.mkdir()
-  d = tmp_path / "a/b/c/k/l" / "r"
-  d.mkdir()
-  d = tmp_path / "a/b/c" / "o"
-  d.mkdir()
-  d = tmp_path / "a/b" / "p"
-  d.mkdir()
+  root = str(tmp_path)
+  os.makedirs(os.path.join(root, "a/b/c/d/e/f/g/h/i/j"))
+  os.makedirs(os.path.join(root, "a/b/c/d/e/f/q"))
+  os.makedirs(os.path.join(root, "a/b/c/k/l/m"))
+  os.makedirs(os.path.join(root, "a/b/c/o"))
+  os.makedirs(os.path.join(root, "a/b/c/p"))
 
-  for path in [
+  filenames = [
     "a/b/c/k/l/m/n",
     "a/b/c/k/l/r",
     "a/b/c/d/e/f/g/h/s",
     "a/b/c/d/e/f/g/h/t",
-  ]:
-    d = tmp_path / path
-    d.touch()
-  import pdb; pdb.set_trace()
+  ]
+  abs_paths = [os.path.join(root, x) for x in filenames]
+
+  for abs_path in abs_paths:
+    assert not os.path.exists(abs_path)
+    open(abs_path, "w").close()
+    assert os.path.exists(abs_path)
+
+  filenames = []
+  for i in range(7):
+    new = rp.random_file(root, file_condition = lambda x: x not in filenames)
+    if new != None:
+      filenames.append(new)
+
+  assert set(filenames) == set(abs_paths)
