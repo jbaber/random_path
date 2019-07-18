@@ -114,34 +114,33 @@ def main():
     root = DEFAULT_ROOT
 
   conditions = []
+  blacklist = []
   if args["--sha384-blacklist"] != None:
     with open(args["--sha384-blacklist"]) as f:
       sha384_blacklist = f.read().split()
       conditions.append(lambda x: sha384(x) not in sha384_blacklist)
   if args["--path-blacklist"] != None:
     with open(args["--path-blacklist"]) as g:
-      path_blacklist = g.read().split()
-      conditions.append(lambda x: x not in path_blacklist)
+      blacklist = g.read().split()
   if args["--extension"] != []:
     for extension in args["--extension"]:
       conditions.append(lambda x: x.lower().endswith(extension.lower()))
-  file_condition = lambda x: all([f(x) for f in conditions])
 
-  _next = random_file(root, file_condition=file_condition)
-
-  if _format == "just-filename":
-    print(_next)
-  else:
-    info = {"path": _next, "sha384": sha384(_next)}
-    if _format == "json":
-      print(json.dumps(info))
-    elif _format == "char30-delimited":
-      print(chr(30).join(["path", _next, "sha384", sha384(_next)]))
-    elif _format == "plain":
-      print("path: {}".format(_next))
-      print("sha384: {}".format(sha384(_next)))
-    else:
+  for _next in random_non_repeating_filenames(root,
+      blacklist=blacklist, conditions=conditions):
+    if _format == "just-filename":
       print(_next)
+    else:
+      info = {"path": _next, "sha384": sha384(_next)}
+      if _format == "json":
+        print(json.dumps(info))
+      elif _format == "char30-delimited":
+        print(chr(30).join(["path", _next, "sha384", sha384(_next)]))
+      elif _format == "plain":
+        print("path: {}".format(_next))
+        print("sha384: {}".format(sha384(_next)))
+      else:
+        print(_next)
 
 
 if __name__ == "__main__":
