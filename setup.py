@@ -9,7 +9,7 @@ setup(
   license = "GPLv3",
   url = "https://github.com/jbaber/random_path",
   packages = ['random_path'],
-  install_requires = ['docopt'],
+  install_requires = ['docopt-ng'],
   tests_require=['pytest'],
   python_requires='>=3.5, <4',
   entry_points = {
