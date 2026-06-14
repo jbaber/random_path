@@ -136,7 +136,7 @@ def random_file(
 
 
 def main():
-  args = docopt(__doc__, version="1.2.0")
+  args = docopt(__doc__, version="2.0.0")
 
   if args["--info"]:
     logging.basicConfig(level=logging.INFO)
