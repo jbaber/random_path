@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 
-import sys
-import os
-import hashlib
 from docopt import docopt
-import random
-import json
-import io
 import csv
+import hashlib
+import io
+import json
+import logging
+import os
+import pathlib
+import random
+import sys
+import time
 
-DEFAULT_ROOT = os.path.abspath(".")
+DEFAULT_ROOT = pathlib.Path(".")
 OUTPUT_FORMATS = ["just-filename", "plain", "json", "char30-delimited"]
 OUTPUT_FORMATS_LIST = ", ".join(["'" + x + "'" for x in OUTPUT_FORMATS])
 
@@ -27,7 +30,14 @@ Options:
   -v, --version                     Show version
   -e, --extension=<.txt>            Only yield files with this extension
                                     (case insensitive)
+
+  -n, --info                        Print info level logging
+  -d, --debug                       Print debug level logging
 """.format(sys.argv[0], DEFAULT_ROOT, OUTPUT_FORMATS_LIST)
+
+
+class NoGoodFileFound(FileNotFoundError):
+    pass
 
 
 def sha384(filename):
@@ -67,65 +77,107 @@ def random_non_repeating_filenames(root, *, blacklist=None,
     )
 
 
-def random_file(root, *, file_condition=None, dir_condition=None):
+def conditions_met(*, testee, conditions) -> bool:
+    for condition in conditions:
+        if not condition(testee):
+            return False
+    return True
+
+
+def random_file(
+    *,
+    root: pathlib.Path,
+    file_conditions=None,
+    dir_conditions=None
+) -> pathlib.Path:
   """
-  To be returned, file_condition must be True and dir_condition must be True
-  for all directories containing a file
+  Raises NoGoodFileFound if no regular file can be found satisfying all
+  `file_conditions` whose parent directories all satisfy all `dir_conditions`
   """
-  if file_condition == None:
-    file_condition = lambda x: True
-  if dir_condition == None:
-    dir_condition = lambda x: True
-  if not dir_condition(root):
-    return None
-  if os.path.isfile(root):
-    if file_condition(root):
+  if file_conditions == None:
+    file_conditions = [lambda x: True]
+  if dir_conditions == None:
+    dir_conditions = [lambda x: True]
+  if not conditions_met(testee=root, conditions=dir_conditions):
+    raise NoGoodFileFound(f"'{root}' doesn't satisfy all dir_conditions")
+  if root.is_file():
+    if conditions_met(testee=root, conditions=file_conditions):
       return root
     else:
-      return None
-  if not os.path.isdir(root):
-    return None
+      raise NoGoodFileFound(f"'{root}' that doesn't satisfy all file_conditions")
+  if not root.is_dir():
+    return NoGoodFileFound(f"'{root}' is not a directory or regular file")
 
   # Now it's a directory for sure
-  all_items = os.listdir(root)
+  logging.info(f"Searching '{root}'")
+  all_items = list(root.iterdir())
+
+  # Randomize the list
   all_items = random.sample(all_items, len(all_items))
   for dir_or_file in all_items:
-    dir_or_file = os.path.join(root, dir_or_file)
-    if os.path.isfile(dir_or_file) and file_condition(dir_or_file):
-      return dir_or_file
-    if os.path.isdir(dir_or_file) and dir_condition(dir_or_file):
-      maybe = random_file(dir_or_file, file_condition=file_condition,
-          dir_condition=dir_condition)
-      if maybe is not None:
-        return maybe
-  return None
+    logging.debug(f"Checking '{dir_or_file}'")
+    dir_or_file = root / dir_or_file
+    if dir_or_file.is_file():
+      logging.info("It's a regular file")
+      if conditions_met(testee=dir_or_file, conditions=file_conditions):
+        logging.info("Conditions met")
+        return dir_or_file
+    if dir_or_file.is_dir():
+        logging.debug("It's a directory")
+        if conditions_met(testee=dir_or_file, conditions=dir_conditions):
+          logging.info("Conditions met")
+          return random_file(
+            root=dir_or_file,
+            file_conditions=file_conditions,
+            dir_conditions=dir_conditions
+          )
 
+  raise NoGoodFileFound("No file satisfies all file_coditions and has parent directories all satisfy dir_conditions")
 
 
 def main():
   args = docopt(__doc__, version="1.2.0")
-  root = args["<DIR>"]
+
+  if args["--info"]:
+    logging.basicConfig(level=logging.INFO)
+  elif args["--debug"]:
+    logging.basicConfig(level=logging.DEBUG)
+  else:
+    logging.basicConfig(level=logging.WARNING)
+
+  try:
+    root = pathlib.Path(args["<DIR>"])
+  except TypeError:
+    root =  DEFAULT_ROOT
+
   _format = args["--output-format"]
   if _format not in OUTPUT_FORMATS:
     print("Only allowed formats are:\n  {}\nreceived '{}'".format(
         OUTPUT_FORMATS_LIST, _format))
     exit(1)
-  if root == None:
-    root = DEFAULT_ROOT
 
-  conditions = []
+  file_conditions = []
   blacklist = []
   if args["--sha384-blacklist"] != None:
     with open(args["--sha384-blacklist"]) as f:
       sha384_blacklist = f.read().split()
-      conditions.append(lambda x: sha384(x) not in sha384_blacklist)
+      file_conditions.append(lambda x: sha384(x) not in sha384_blacklist)
   if args["--path-blacklist"] != None:
     with open(args["--path-blacklist"]) as g:
       blacklist = g.read().split()
   if args["--extension"] != []:
     for extension in args["--extension"]:
-      conditions.append(lambda x: x.lower().endswith(extension.lower()))
+      file_conditions.append(lambda x: x.lower().endswith(extension.lower()))
 
+  while True:
+    try:
+        print(random_file(root=root, file_conditions=file_conditions))
+        sys.exit(0)
+    except NoGoodFileFound:
+        logging.info("Failed in this path, try again")
+        time.sleep(.1)
+
+  """
   for _next in random_non_repeating_filenames(root,
       blacklist=blacklist, conditions=conditions):
     if _format == "just-filename":
@@ -141,6 +193,7 @@ def main():
         print("sha384: {}".format(sha384(_next)))
       else:
         print(_next)
+  """
 
 
 if __name__ == "__main__":
